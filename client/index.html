@@ -1,0 +1,470 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="description" content="Mindojo Invoices Management Tool">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="google-signin-client_id" content="<?= SYSTEM_SETTINGS.gcloudClientID ?>">
+
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.0/css/bootstrap.min.css"
+      integrity="sha384-9gVQ4dYFwwWSjIDZnLEWnxCjeSWFphJiwGPXr1jddIhOegiu1FwO5qRGvFXOdJZ4"
+      crossorigin="anonymous">
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"
+      integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo"
+      crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.0/umd/popper.min.js"
+      integrity="sha384-cs/chFZiN24E4KMATLdqdvsezGxaGsi4hLGOzlXwp5UZB1LY//20VyM2taTB4QvJ"
+      crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.0/js/bootstrap.min.js"
+      integrity="sha384-uefMccjFJAIv6A+rW+L4AHf99KvxDjWSu1z9VI8SKNVmz4sk7buKt/6v9KI65qnm"
+      crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.8.0/css/bootstrap-datepicker.min.css"
+      integrity="sha256-JDBcnYeV19J14isGd3EtnsCQK05d8PczJ5+fvEvBJvI="
+      crossorigin="anonymous" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-datepicker/1.8.0/js/bootstrap-datepicker.min.js"
+      integrity="sha256-tW5LzEC7QjhG0CiAvxlseMTs2qJS7u3DRPauDjFJ3zo=" 
+    crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.5.16/dist/vue.js"></script>
+
+    <script src="https://apis.google.com/js/platform.js" async defer></script>
+    <style>
+      .clear { clear: both; }
+      .user-info {
+        margin-top: 10px;
+        float: left;
+      }
+      .user-info img {
+        margin-right: 10px;
+        height: 40px; width: 40px;
+        border-radius: 40px;
+      }
+      .user-info-status {
+        font-size: 0.8em;
+        font-style: italic;
+      }
+
+      .bordered {
+        border: 1px solid black;
+      }
+
+      .app-section h4 {
+        text-align: left;
+        margin: 30px 0px 30px 0px;
+      }
+      .center {
+        text-align: center;
+      }
+
+      .error {
+        color: red;
+        font-size: 0.8em;
+      }
+      div.header-row>img {
+        height: 54px;
+      }
+      header {
+        background-color: #3F51B5;
+      }
+      .expl {
+        font-style: italic;
+        color: gray;
+      }
+      label {
+        font-size: 0.8em;
+      }
+    </style>
+    <script>
+      function onSignIn(googleUser) {
+        var userProfile = googleUser.getBasicProfile();
+        vm.user.email = userProfile.getEmail();
+        vm.user.name = userProfile.getName();
+        vm.user.image = userProfile.getImageUrl();
+        vm.user.signedin = true;
+
+        google.script.run.withSuccessHandler(function(result) {
+          vm.hideAppSections();
+          if (result.action === 'create-vendor') {
+            vm.showCreateVendor = true;
+          } else if (result.action === 'upload-invoice') {
+            google.script.run
+              .withSuccessHandler(function(result) {
+                vm.allowedMonths = result;
+                vm.newInvoice.month = result[0];
+              })
+              .getInvoiceDateAllowedMonths();
+            vm.showUploadInvoice = true;
+          }
+          vm.user.signinMessage = result.message;
+        }).getUserData(userProfile.getEmail());
+      }
+
+      function signOut() {
+        var auth2 = gapi.auth2.getAuthInstance();
+        auth2.signOut().then(function () {
+          vm.user.signedin = false;
+          vm.hideAppSections();
+        });
+      }
+  </script>
+
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <div class="header-row">
+          <img src="http://general-mindojo-storage.s3.amazonaws.com/public/logo-invoice%402x.png">
+        </div>
+      </header>
+
+      <main>
+        <div class="">
+          <div class="">
+
+            <div id="vm">
+              <div class="row">
+                <div class="col"></div>
+                <div class="app-user-signin col-8">
+                  <div v-show="user.signedin">
+                    <div class="user-info">
+                      Welcome <strong>{{ user.name }} &lt;{{ user.email }}&gt;</strong>
+                      <a href="#" onclick="signOut(); return false;">Sign out</a>
+                      <img :src="user.image">
+                      <div class="user-info-status">
+                        {{ user.signinMessage }}
+                      </div>
+                    </div>
+                  </div>
+                  <div v-show="!user.signedin" id="g-signin-btn" class="g-signin2" data-onsuccess="onSignIn"></div>
+                  <div class="clear"></div>
+                </div>
+                <div class="col"></div>
+              </div>
+
+              <div class="">
+                <div v-show="showCreateVendor" class="app-section app-create-vendor">
+                  <div class="row">
+                    <div class="col"></div>
+                    <div class="col-8">
+                      <h4>Create invoicing profile</h4>
+                      <p class="expl">Let's get you set up. Enter your details here to create a profile for submitting invoices.</p>
+                    </div>
+                    <div class="col"></div>
+                  </div>
+                  <div class="row">
+                    <div class="col"></div>
+                    <div class="col-8">
+                      <form action="#">
+                        <div class="form-group">
+                          <label for="newprofile-fullname">Full name</label>
+                          <input class="form-control" type="text" id="newprofile-fullname" v-model="newProfile.fullName">
+                          <span class="error" v-show="errorProfile.fullName" v-text="errorProfile.fullName"></span>
+                        </div>
+                        <div class="form-group w-25">
+                          <label for="newprofile-contractdate">Contract date (MM/DD/YYYY)</label>
+                          <input class="form-control datepicker" type="text" id="newprofile-contractdate" autocomplete="off" v-model="newProfile.contractDate">
+                          <span class="error" v-show="errorProfile.contractDate" v-text="errorProfile.contractDate"></span>
+                        </div>
+                        <div class="form-group">
+                          <label for="newprofile-address1">Address</label>
+                          <input class="form-control" type="text" id="newprofile-address1" v-model="newProfile.address1">
+                        </div>
+    
+                        <div class="form-group">
+                          <input class="form-control" type="text" id="newprofile-address2" v-model="newProfile.address2">
+                          <span class="error" v-show="errorProfile.address" v-text="errorProfile.address"></span>
+                        </div>
+    
+                        <div class="form-group w-50">
+                          <label for="newprofile-country">Country</label>
+                          <input class="form-control" type="text" id="newprofile-country" v-model="newProfile.country">
+                          <span class="error" v-show="errorProfile.country" v-text="errorProfile.country"></span>
+                        </div>
+                        <div class="form-group w-25">
+                          <label for="newprofile-phone">Phone</label>
+                          <input class="form-control" type="text" id="newprofile-phone" v-model="newProfile.phone">
+                          <span class="error" v-show="errorProfile.phone" v-text="errorProfile.phone"></span>
+                        </div>
+                        <div class="form-group w-25">
+                          <label for="newprofile-paymentmethod">Payment method</label>
+                          <select class="form-control" id="newprofile-paymentmethod" v-model="newProfile.paymentMethod">
+                            <option value=""></option>
+                            <option value="ACH">ACH</option>
+                            <option value="SWIFT">SWIFT</option>
+                            <option value="PayPal">PayPal</option>
+                            <option value="Payoneer">Payoneer</option>
+                          </select>
+                          <span class="error" v-show="errorProfile.paymentMethod" v-text="errorProfile.paymentMethod"></span>
+                        </div>
+                        <div v-show="newProfile.paymentMethod === 'ACH'" class="form-group w-50">
+                          <label for="newprofile-achname">ACH name on account</label>
+                          <input class="form-control" type="text" id="newprofile-achname" v-model="newProfile.achName">
+                          <span class="error" v-show="errorProfile.achName" v-text="errorProfile.achName"></span>
+                        </div>
+                        <div v-show="newProfile.paymentMethod === 'ACH'" class="form-group w-50">
+                          <label for="newprofile-achaccount">ACH account number</label>
+                          <input class="form-control" type="text" id="newprofile-achaccount" v-model="newProfile.achAccount">
+                          <span class="error" v-show="errorProfile.achAccount" v-text="errorProfile.achAccount"></span>
+                        </div>
+                        <div v-show="newProfile.paymentMethod === 'ACH'" class="form-group w-25">
+                          <label for="newprofile-achtype">Account Type</label>
+                          <select class="form-control" id="newprofile-achtype" v-model="newProfile.achAccountType">
+                            <option value=""></option>
+                            <option value="Checking">Checking</option>
+                            <option value="Savings">Savings</option>
+                          </select>
+                          <span class="error" v-show="errorProfile.achAccountType" v-text="errorProfile.achAccountType"></span>
+                        </div>
+                        <div v-show="newProfile.paymentMethod === 'ACH'" class="form-group w-50">
+                          <label for="newprofile-achroutingnumber">ACH routing number</label>
+                          <input class="form-control" type="text" id="newprofile-achroutingnumber" v-model="newProfile.achRoutingNumber">
+                          <span class="error" v-show="errorProfile.achRoutingNumber" v-text="errorProfile.achRoutingNumber"></span>
+                        </div>
+                        <div v-show="newProfile.paymentMethod === 'SWIFT'" class="form-group w-50">
+                          <label for="newprofile-swiftname">SWIFT name on account</label>
+                          <input class="form-control" type="text" id="newprofile-swiftname" v-model="newProfile.swiftName">
+                          <span class="error" v-show="errorProfile.swiftName" v-text="errorProfile.swiftName"></span>
+                        </div>
+                        <div v-show="newProfile.paymentMethod === 'SWIFT'" class="form-group w-50">
+                          <label for="newprofile-swiftbank">SWIFT bank name</label>
+                          <input class="form-control" type="text" id="newprofile-swiftbank" v-model="newProfile.swiftBank">
+                          <span class="error" v-show="errorProfile.swiftBank" v-text="errorProfile.swiftBank"></span>
+                        </div>
+                        <div v-show="newProfile.paymentMethod === 'SWIFT'" class="form-group w-25">
+                          <label for="newprofile-swiftiban">SWIFT account IBAN</label>
+                          <input class="form-control" type="text" id="newprofile-swiftiban" v-model="newProfile.swiftIBAN">
+                          <span class="error" v-show="errorProfile.swiftIBAN" v-text="errorProfile.swiftIBAN"></span>
+                        </div>
+                        <div v-show="newProfile.paymentMethod === 'SWIFT'" class="form-group w-25">
+                          <label for="newprofile-swiftcode">SWIFT code</label>
+                          <input class="form-control" type="text" id="newprofile-swiftcode" v-model="newProfile.swiftCode">
+                          <span class="error" v-show="errorProfile.swiftCode" v-text="errorProfile.swiftCode"></span>
+                        </div>
+                        <div v-show="newProfile.paymentMethod === 'PayPal'" class="form-group w-50">
+                          <label for="newprofile-paypalemail">PayPal account email</label>
+                          <input class="form-control" type="text" id="newprofile-paypalemail" v-model="newProfile.paypalEmail">
+                          <span class="error" v-show="errorProfile.paypalEmail" v-text="errorProfile.paypalEmail"></span>
+                        </div>
+                        <div v-show="newProfile.paymentMethod === 'Payoneer'" class="form-group w-50">
+                          <label for="newprofile-payoneeraccount">Payoneer account number</label>
+                          <input class="form-control" type="text" id="newprofile-payoneeraccount" v-model="newProfile.payoneerAccount">
+                          <span class="error" v-show="errorProfile.payoneerAccount" v-text="errorProfile.payoneerAccount"></span>
+                        </div>
+
+                        <button class="btn btn-primary" type="submit" onclick="vm.submitNewProfile(); return false;">Submit</button>
+                      </form>
+                    </div>
+                    <div class="col"></div>
+                  </div>
+                </div>
+              </div> <!-- end of app-create-vendor -->
+
+              <div v-show="showUploadInvoice" class="app-section app-upload-invoice">
+                <div class="row">
+                  <div class="col"></div>
+                  <div class="col-8">
+                    <h4>Upload invoice</h4>
+                    <p class="expl">Please enter invoice data and upload the PDF file.</p>
+                  </div>
+                  <div class="col"></div>
+                </div>
+
+                <div class="row">
+                  <div class="col"></div>
+                  <div class="col-8">
+                    <form>
+                      <div class="form-group w-25">
+                        <label for="newinvoice-month">Month of services (MM/YYYY)</label>
+                        <select class="form-control" id="newInvoice.month" v-model="newInvoice.month">
+                          <option v-for="opt in allowedMonths" v-bind:value="opt">{{ opt }}</option>
+                        </select>
+                        <span class="error" v-show="errorInvoice.month" v-text="errorInvoice.month"></span>
+                      </div>
+  
+                      <div class="form-group w-25">
+                        <label for="newinvoice-date">Date appearing on the invoice (MM/DD/YYYY)</label>
+                        <input class="form-control datepicker" type="text" id="newinvoice-date" autocomplete="off" v-model="newInvoice.date">
+                        <span class="error" v-show="errorInvoice.date" v-text="errorInvoice.date"></span>
+                      </div>
+  
+                      <div class="form-group w-25">
+                        <label for="newinvoice-number">Invoice number</label>
+                        <input class="form-control" type="text" id="newinvoice-number" v-model="newInvoice.number">
+                        <span class="error" v-show="errorInvoice.number" v-text="errorInvoice.number"></span>
+                      </div>
+  
+                      <div class="form-group w-25">
+                        <label for="newinvoice-amount">Invoice amount</label>
+                        <input class="form-control" type="text" id="newinvoice-amount" v-model="newInvoice.amount">
+                        <span class="error" v-show="errorInvoice.amount" v-text="errorInvoice.amount"></span>
+                      </div>
+  
+                      <div class="form-group">
+                        <input type="file" class="form-control-file" id="inFile">
+                        <span class="error" v-show="errorInvoice.file" v-text="errorInvoice.file"></span>
+                      </div>
+  
+                      <button class="btn btn-primary" type="submit" onclick="vm.submitInvoice(); return false;">Submit</button>
+                    </form>
+                  </div>
+                  <div class="col"></div>
+                </div>
+                <div class="mdl-cell mdl-cell--4-col"></div>
+              </div>
+
+              <div v-show="showOKmessage" class="app-section app-ok-message">
+                <div class="row">
+                  <div class="col"></div>
+                  <div class="col-8">
+                    <h4>Done.</h4>
+                    <p class="expl">{{ okMessage }}</p>
+                  </div>
+                  <div class="col"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      var vm = new Vue({
+        el: '#vm',
+        data: {
+          user: {
+            signedin: false,
+            email: '',
+            image: '',
+            approved: false,
+            signinMessage: ''
+          },
+          showCreateVendor: false,
+          showUploadInvoice: false,
+
+          newProfile: {
+            email: '',
+            fullName: '',
+            contractDate: '',
+            address1: '',
+            address2: '',
+            country: '',
+            phone: '',
+            paymentMethod: '',
+            achName: '',
+            achAccount: '',
+            achAccountType: '',
+            achRoutingNumber: '',
+            swiftName: '',
+            swiftBank: '',
+            swiftIBAN: '',
+            swiftCode: '',
+            paypalEmail: '',
+            payoneerAccount: ''
+          },
+          errorProfile: {},
+
+          newInvoice: {
+            month: '',
+            date: '',
+            number: '',
+            amount: 0.00,
+            file: null
+          },
+          errorInvoice: {},
+          showOKmessage: false,
+          okMessage: '',
+          allowedMonths: []
+        },
+        mounted: function() {
+          var _vm = this;
+          google.script.run
+            .withSuccessHandler(function(result) {
+              var my = result[result.length-1].split('/'),
+                  today = new Date();
+                  dateOptions = {
+                    format: 'mm/dd/yyyy',
+                    autoClose: true,
+                    endDate: String(today.getMonth()+1) + '/' + String(today.getDate()) + '/' + today.getFullYear(),
+                    orientation: 'bottom auto',
+                    todayBtn: 'linked'
+                  };
+
+              $("#newprofile-contractdate").datepicker(dateOptions).on("changeDate", function() {
+                _vm.newProfile.contractDate = $('#newprofile-contractdate').val();
+              });
+              (function (opt) {
+                opt.startDate = my[0] + '/01/' + my[1];
+                $("#newinvoice-date").datepicker(opt).on("changeDate", function() {
+                  _vm.newInvoice.date = $('#newinvoice-date').val();
+                });
+              })(dateOptions);
+            })
+            .getInvoiceDateAllowedMonths();
+        },
+        methods: {
+          submitNewProfile: function() {
+            var profile = this.newProfile,
+                _vm = this;
+            profile.email = this.user.email;
+            google.script.run
+              .withSuccessHandler(function(result) {
+                if (result.action === 'error') {
+                  _vm.errorProfile = result.errors;
+                } else {
+                  _vm.showOK(result.message);
+                }
+              })
+              .submitNewProfile(profile);
+          },
+
+          submitInvoice: function() {
+            var invoice = this.newInvoice,
+                files,
+                reader = new FileReader(),
+                _vm = this;
+
+            invoice.email = this.user.email;
+            reader.onloadend = function(e) {
+              var data = {};
+              if (e.target.error != null) {
+                _vm.errorInvoice.file = "File " + file.name + " could not be read.";
+                return;
+              } else {
+                google.script.run
+                  .withSuccessHandler(function(result) {
+                    if (result.action === 'error') {
+                      _vm.errorInvoice = result.errors;
+                    } else {
+                      _vm.showOK(result.message);
+                    }
+                  })
+                  .submitInvoice(e.target.result, invoice);
+              }
+            };
+
+            files = document.getElementById('inFile').files;
+            if (files.length === 1) {
+              reader.readAsDataURL(files[0]);
+            } else {
+              _vm.errorInvoice.file = 'You must choose exactly 1 PDF file.';
+              _vm.$forceUpdate();
+            }
+          },
+
+          hideAppSections: function() {
+            this.showUploadInvoice = false;
+            this.showCreateVendor = false;
+            this.showOKmessage = false;
+          },
+
+          showOK: function(msg) {
+            this.hideAppSections();
+            this.showOKmessage = true;
+            this.okMessage = msg;
+          }
+        }
+      });
+    </script>
+  </body>
+</html>
